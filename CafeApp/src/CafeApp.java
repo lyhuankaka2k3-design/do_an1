@@ -558,7 +558,7 @@ class MainFrame extends JFrame {
                 new ImageIcon(getClass().getResource("/icon1/doanhthu.png")),
                 new Color(102, 178, 255), new Color(51, 153, 255));
 
-        JButton btnInventory = themedButton(" xuất kho",
+        JButton btnInventory = themedButton(" kho sản phẩm",
                 new ImageIcon(getClass().getResource("/icon1/xuatkho.png")),
                 new Color(102, 178, 255), new Color(51, 153, 255));
 
@@ -807,31 +807,31 @@ class MainFrame extends JFrame {
         activeButton.setBorder(BorderFactory.createEmptyBorder(10, 30, 10, 10)); // dịch text sang phải
     }
 
-    private void applyRolePermissions(JButton home, JButton revenue, JButton inventory, JButton products, JButton customers, JButton accounts, JButton employees) {
-        // ADMIN có toàn quyền
-        if ("ADMIN".equalsIgnoreCase(role)) {
-            return;
-        }
+  private void applyRolePermissions(JButton home, JButton revenue, JButton inventory,
+                                  JButton products, JButton customers,
+                                  JButton accounts, JButton employees) {
 
-        if ("ORDER".equalsIgnoreCase(role)) {
-            inventory.setEnabled(false);
-            products.setEnabled(false);
-            customers.setEnabled(false);
-            accounts.setEnabled(false);
-            employees.setEnabled(false);       // 🔒 chỉ ADMIN được
-//            productsDetail.setEnabled(false);  // 🔒 chỉ ADMIN được
-
-        } else if ("WAREHOUSE".equalsIgnoreCase(role)) {
-            home.setEnabled(false);
-            revenue.setEnabled(false);
-            products.setEnabled(false);
-            customers.setEnabled(false);
-            accounts.setEnabled(false);
-            employees.setEnabled(false);       // 🔒 chỉ ADMIN được
-//            productsDetail.setEnabled(false);  // 🔒 chỉ ADMIN được
-        }
+    // ADMIN thấy tất cả
+    if ("ADMIN".equalsIgnoreCase(role)) {
+        return;
     }
 
+    // ORDER: chỉ thấy Order và Doanh thu
+    if ("ORDER".equalsIgnoreCase(role)) {
+        inventory.setVisible(false);
+        products.setVisible(false);
+        accounts.setVisible(false);
+        employees.setVisible(false);
+    }
+
+    // WAREHOUSE: chỉ thấy Xuất kho
+    else if ("WAREHOUSE".equalsIgnoreCase(role)) {
+        home.setVisible(false);
+        customers.setVisible(false);
+        accounts.setVisible(false);
+        employees.setVisible(false);
+    }
+}
 }
 class TrangChuPanel extends JPanel {
     private final JLabel welcome;
@@ -2244,6 +2244,7 @@ private void showTotalRevenue() {
 
             JOptionPane.showMessageDialog(this, actionName + " thành công!");
             load();
+             ((MainFrame) SwingUtilities.getWindowAncestor(this)).refreshAll();
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, "Lỗi: " + ex.getMessage());
         }
@@ -2788,23 +2789,42 @@ class CustomersPanel extends JPanel {
 
     // 🔄 Load dữ liệu
     void load() {
-        model.setRowCount(0);
-        try (Connection c = DBHelper.getConnection();
-             Statement st = c.createStatement();
-             ResultSet rs = st.executeQuery("SELECT id, name, phone, points FROM Customers")) {
-            while (rs.next()) {
-                float points = rs.getFloat("points");
-                model.addRow(new Object[]{
-                        rs.getInt("id"),
-                        rs.getString("name"),
-                        rs.getString("phone"),
-                        String.format("%.2f", points)
-                });
+    model.setRowCount(0);
+    try (Connection c = DBHelper.getConnection();
+         Statement st = c.createStatement();
+         ResultSet rs = st.executeQuery("SELECT id, name, phone, points FROM Customers")) {
+
+        while (rs.next()) {
+            // 🔹 Đọc points dạng chuỗi để tránh lỗi định dạng dấu phẩy
+            String p = rs.getString("points");
+
+            // Nếu có dấu phẩy (ví dụ '5,25') thì chuyển sang chấm để hiển thị đúng
+            if (p != null) {
+                p = p.replace(",", ".");
+            } else {
+                p = "0.00";
             }
-        } catch (Exception ex) {
-            System.err.println(ex.getMessage());
+
+            // Chuyển thành số thực, sau đó format về 2 chữ số thập phân
+            double points = 0;
+            try {
+                points = Double.parseDouble(p);
+            } catch (NumberFormatException e) {
+                // Nếu lỗi định dạng thì để 0.0
+            }
+
+            model.addRow(new Object[]{
+                    rs.getInt("id"),
+                    rs.getString("name"),
+                    rs.getString("phone"),
+                    String.format("%.2f", points)
+            });
         }
+
+    } catch (Exception ex) {
+        ex.printStackTrace();
     }
+}
 
     // 🔍 Tìm khách hàng
     private void searchCustomer() {
